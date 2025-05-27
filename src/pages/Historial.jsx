@@ -1,59 +1,8 @@
 import React, { useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import Swal from 'sweetalert2';
+import Swal from "sweetalert2";
 
-function Header() {
-  return (
-    <header className="bg-green-700 text-white p-6 text-center shadow">
-      <h1 className="text-3xl font-bold">EcoRed</h1>
-      <p className="text-sm">Promoviendo el reciclaje responsable en comunidades urbanas</p>
-    </header>
-  );
-}
 
-function Navigation() {
-  return (
-    <nav className="bg-green-600 text-white flex justify-center gap-6 p-3 font-semibold">
-      <Link to="/" className="hover:underline">Inicio</Link>
-      <Link to="/tips" className="hover:underline">Tips</Link>
-      <Link to="/historial" className="hover:underline">Historial</Link>
-      <Link to="/logros" className="hover:underline">Logros</Link>
-    </nav>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="bg-green-700 text-white text-center p-4 mt-10">
-      &copy; 2025 EcoRed - Facultad de Informática, UAS
-    </footer>
-  );
-}
-
-function Inicio() {
-  return (
-    <section className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-green-800 mb-2">Bienvenido a EcoRed</h2>
-      <p>Esta plataforma te ayudará a llevar un seguimiento de tus actividades de reciclaje, aprender buenas prácticas y mantenerte motivado con logros ecológicos. ¡Juntos construimos comunidades más limpias!</p>
-    </section>
-  );
-}
-
-function Tips() {
-  return (
-    <section className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-green-800 mb-2">Tips de Reciclaje</h2>
-      <ul className="list-disc pl-6">
-        <li>Separa tus residuos en orgánicos, inorgánicos y reciclables.</li>
-        <li>Limpia los envases antes de reciclarlos.</li>
-        <li>Reutiliza materiales antes de desecharlos.</li>
-        <li>Evita el uso de plásticos de un solo uso.</li>
-      </ul>
-    </section>
-  );
-}
-
-function Historial() {
+export default function Historial() {
   const [historial, setHistorial] = useState([
     { fecha: "15/05/2025", material: "Papel y cartón", cantidad: "3 kg", comentario: "Material recolectado en casa", imagen: null },
     { fecha: "18/05/2025", material: "Botellas PET", cantidad: "12 unidades", comentario: "Reciclaje semanal", imagen: null }
@@ -193,37 +142,5 @@ const agregarRegistro = () => {
         </tbody>
       </table>
     </section>
-  );
-}
-
-
-function Logros() {
-  return (
-    <section className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-green-800 mb-2">Logros</h2>
-      <ul className="list-disc pl-6">
-        <li>⭐ Primer Reciclaje Completado</li>
-        <li>⭐ 10 Materiales Clasificados</li>
-        <li>⭐ Hábito Semanal Formado</li>
-      </ul>
-    </section>
-  );
-}
-
-export default function EcoRedApp() {
-  return (
-    <Router>
-      <div className="min-h-screen bg-green-50 text-gray-800">
-        <Header />
-        <Navigation />
-        <Routes>
-          <Route path="/" element={<Inicio />} />
-          <Route path="/tips" element={<Tips />} />
-          <Route path="/historial" element={<Historial />} />
-          <Route path="/logros" element={<Logros />} />
-        </Routes>
-        <Footer />
-      </div>
-    </Router>
   );
 }
