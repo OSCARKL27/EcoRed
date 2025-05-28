@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { auth, db, storage } from '../services/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { FiSend, FiImage, FiSmile, FiEdit } from 'react-icons/fi';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { FiSend, FiImage, FiSmile, FiEdit, FiX } from 'react-icons/fi';
 import EmojiPicker from 'emoji-picker-react';
 import { updateProfile } from 'firebase/auth';
 
@@ -13,33 +13,41 @@ export default function Chat() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(auth.currentUser?.displayName || '');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll y limpieza del mensaje
-  const resetAndScroll = () => {
-    setMessage('');
-    setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
-
-  // Enviar mensaje
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!message.trim() && !file) return;
+    if ((!message.trim() && !file) || isSending) return;
 
     const user = auth.currentUser;
+    if (!user) return;
+
     let fileUrl = '';
+    setIsSending(true);
 
     try {
       // Subir imagen si existe
       if (file) {
         const storageRef = ref(storage, `chat/${user.uid}/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        fileUrl = await getDownloadURL(storageRef);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        // Esperar a que se complete la subida
+        await new Promise((resolve, reject) => {
+          uploadTask.on('state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+            },
+            (error) => reject(error),
+            async () => {
+              fileUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve();
+            }
+          );
+        });
       }
 
       // Guardar mensaje en Firestore
@@ -52,9 +60,22 @@ export default function Chat() {
         timestamp: serverTimestamp(),
       });
 
-      resetAndScroll();
+      // Resetear estados
+      setMessage('');
+      setFile(null);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      // Scroll al final
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+
     } catch (error) {
-      console.error('Error enviando mensaje:', error);
+      console.error('Error:', error);
+      alert('Error al enviar: ' + error.message);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -64,11 +85,10 @@ export default function Chat() {
     
     try {
       const user = auth.currentUser;
+      if (!user) return;
       
-      // 1. Actualizar perfil en Firebase Auth
       await updateProfile(user, { displayName: newName.trim() });
       
-      // 2. Actualizar mensajes existentes
       const userMessages = messages.filter(msg => msg.userId === user.uid);
       const batch = userMessages.map(msg => 
         updateDoc(doc(db, 'messages', msg.id), { userName: newName.trim() })
@@ -88,7 +108,7 @@ export default function Chat() {
       const msgs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        timestamp: doc.data().timestamp // Conservamos el timestamp como objeto
+        timestamp: doc.data().timestamp
       }));
       setMessages(msgs);
       setTimeout(() => {
@@ -161,7 +181,7 @@ export default function Chat() {
               )}
               
               <p className="text-xs text-gray-500 mt-1 text-right">
-                {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {msg.timestamp?.toDate()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
           </div>
@@ -189,6 +209,7 @@ export default function Chat() {
             type="button" 
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             className="p-2 text-gray-500 hover:text-green-600"
+            disabled={isSending}
           >
             <FiSmile size={20} />
           </button>
@@ -199,43 +220,72 @@ export default function Chat() {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Escribe un mensaje..."
             className="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            disabled={isSending}
           />
 
-          <label className="p-2 text-gray-500 hover:text-green-600 cursor-pointer">
+          <label className={`p-2 ${isSending ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-green-600 cursor-pointer'}`}>
             <FiImage size={20} />
             <input 
               type="file" 
               ref={fileInputRef}
-              accept="image/*,video/*"
-              onChange={(e) => setFile(e.target.files[0])}
-              className="hidden" 
+              accept="image/*"
+              onChange={(e) => !isSending && setFile(e.target.files[0])}
+              className="hidden"
+              disabled={isSending}
             />
           </label>
 
           <button
             type="submit"
-            disabled={!message.trim() && !file}
-            className="p-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400 hover:bg-green-700 transition-colors"
+            disabled={(!message.trim() && !file) || isSending}
+            className={`p-2 rounded-lg transition-colors flex items-center justify-center min-w-[40px] ${
+              isSending ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
           >
-            <FiSend size={20} />
+            {isSending ? (
+              <span className="inline-block animate-spin">⏳</span>
+            ) : (
+              <FiSend size={20} />
+            )}
           </button>
         </div>
 
         {file && (
-          <div className="mt-2 flex items-center justify-between bg-green-50 p-2 rounded">
-            <span className="text-sm text-green-800 truncate max-w-xs">
-              {file.name}
-            </span>
-            <button 
-              type="button" 
-              onClick={() => {
-                setFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-              }}
-              className="text-red-500 text-sm"
-            >
-              ✕
-            </button>
+          <div className="mt-2 bg-green-50 p-2 rounded">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-sm text-green-800 truncate max-w-xs">
+                {file.name} {isSending && `(${Math.round(uploadProgress)}%)`}
+              </span>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setFile(null);
+                  setUploadProgress(0);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                className="text-red-500 hover:text-red-700"
+                disabled={isSending}
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            
+            {uploadProgress > 0 && (
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-green-600 h-2.5 rounded-full" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            )}
+            
+            {file.type.startsWith('image/') && (
+              <img
+                src={URL.createObjectURL(file)}
+                alt="Preview"
+                className="mt-2 rounded max-h-20 max-w-full object-contain border border-gray-200"
+              />
+            )}
           </div>
         )}
       </form>
