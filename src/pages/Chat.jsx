@@ -1,7 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { auth, db, storage } from '../services/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, doc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  orderBy,
+  onSnapshot,
+  updateDoc,
+  doc,
+  deleteDoc // 👈 Añadido para borrar mensajes
+} from 'firebase/firestore';
+import 'sweetalert2/src/sweetalert2.scss';
+import Swal from 'sweetalert2';
+
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject // 👈 Añadido para borrar imágenes
+} from 'firebase/storage';
 import { FiSend, FiImage, FiSmile, FiEdit, FiX } from 'react-icons/fi';
 import EmojiPicker from 'emoji-picker-react';
 import { updateProfile } from 'firebase/auth';
@@ -15,9 +33,66 @@ export default function Chat() {
   const [newName, setNewName] = useState(auth.currentUser?.displayName || '');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null); // Para el lightbox
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // Función para borrar mensajes (nueva)
+  const deleteMessage = async (messageId, imageUrl) => {
+    // Confirmación con SweetAlert
+    const confirmResult = await Swal.fire({
+      title: '¿Eliminar mensaje?',
+      text: "¡Esta acción no se puede deshacer!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Sí, borrar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!confirmResult.isConfirmed) return;
+
+    try {
+      // Borrar imagen de Storage si existe
+      if (imageUrl) {
+        try {
+          const imagePath = decodeURIComponent(imageUrl.split('/o/')[1].split('?')[0]);
+          const imageRef = ref(storage, imagePath);
+          await deleteObject(imageRef);
+        } catch (imageError) {
+          console.error("Error borrando imagen:", imageError);
+          Swal.fire("Error", "No se pudo eliminar la imagen adjunta", "error");
+          return;
+        }
+      }
+
+      // Borrar mensaje de Firestore
+      await deleteDoc(doc(db, 'messages', messageId));
+
+      // Notificación de éxito
+      Swal.fire({
+        position: 'top-end',
+        icon: 'success',
+        title: 'Mensaje eliminado',
+        showConfirmButton: false,
+        timer: 1500,
+        toast: true
+      });
+
+    } catch (error) {
+      console.error("Error al borrar:", error);
+      // Notificación de error personalizada
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo eliminar el mensaje: ' + error.message,
+        icon: 'error',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
+  // Función para enviar mensajes (existente)
   const sendMessage = async (e) => {
     e.preventDefault();
     if ((!message.trim() && !file) || isSending) return;
@@ -29,12 +104,10 @@ export default function Chat() {
     setIsSending(true);
 
     try {
-      // Subir imagen si existe
       if (file) {
         const storageRef = ref(storage, `chat/${user.uid}/${Date.now()}_${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
-        // Esperar a que se complete la subida
         await new Promise((resolve, reject) => {
           uploadTask.on('state_changed',
             (snapshot) => {
@@ -50,7 +123,6 @@ export default function Chat() {
         });
       }
 
-      // Guardar mensaje en Firestore
       await addDoc(collection(db, 'messages'), {
         text: message.trim(),
         image: fileUrl,
@@ -60,13 +132,11 @@ export default function Chat() {
         timestamp: serverTimestamp(),
       });
 
-      // Resetear estados
       setMessage('');
       setFile(null);
       setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
 
-      // Scroll al final
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
@@ -79,21 +149,21 @@ export default function Chat() {
     }
   };
 
-  // Actualizar nombre de usuario
+  // Actualizar nombre de usuario (existente)
   const updateUserName = async () => {
     if (!newName.trim()) return;
-    
+
     try {
       const user = auth.currentUser;
       if (!user) return;
-      
+
       await updateProfile(user, { displayName: newName.trim() });
-      
+
       const userMessages = messages.filter(msg => msg.userId === user.uid);
-      const batch = userMessages.map(msg => 
+      const batch = userMessages.map(msg =>
         updateDoc(doc(db, 'messages', msg.id), { userName: newName.trim() })
       );
-      
+
       await Promise.all(batch);
       setEditingName(false);
     } catch (error) {
@@ -101,7 +171,7 @@ export default function Chat() {
     }
   };
 
-  // Cargar mensajes
+  // Cargar mensajes (existente)
   useEffect(() => {
     const q = query(collection(db, 'messages'), orderBy('timestamp'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -127,7 +197,7 @@ export default function Chat() {
           <h2 className="text-xl font-bold">Chat Comunitario ♻️</h2>
           <p className="text-sm text-green-100">Conectando recicladores</p>
         </div>
-        
+
         {editingName ? (
           <div className="flex items-center gap-2">
             <input
@@ -137,7 +207,7 @@ export default function Chat() {
               className="p-1 text-black rounded text-sm"
               maxLength={20}
             />
-            <button 
+            <button
               onClick={updateUserName}
               className="bg-white text-green-700 px-2 py-1 rounded text-sm"
             >
@@ -145,7 +215,7 @@ export default function Chat() {
             </button>
           </div>
         ) : (
-          <button 
+          <button
             onClick={() => setEditingName(true)}
             className="flex items-center gap-1 text-sm bg-green-600 hover:bg-green-800 px-2 py-1 rounded"
           >
@@ -158,7 +228,19 @@ export default function Chat() {
       <div className="flex-grow bg-white p-4 overflow-y-auto space-y-3 border-x border-gray-200">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.userId === auth.currentUser?.uid ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs md:max-w-md rounded-lg p-3 ${msg.userId === auth.currentUser?.uid ? 'bg-green-100 rounded-tr-none' : 'bg-gray-100 rounded-tl-none'}`}>
+            <div className={`relative max-w-xs md:max-w-md rounded-lg p-3 ${msg.userId === auth.currentUser?.uid ? 'bg-green-100 rounded-tr-none' : 'bg-gray-100 rounded-tl-none'}`}>
+
+              {/* Botón de eliminar (nuevo) */}
+              {msg.userId === auth.currentUser?.uid && (
+                <button
+                  onClick={() => deleteMessage(msg.id, msg.image)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  title="Borrar mensaje"
+                >
+                  <FiX size={14} />
+                </button>
+              )}
+
               <div className="flex items-center gap-2 mb-1">
                 {msg.userPhoto ? (
                   <img src={msg.userPhoto} alt={msg.userName} className="w-6 h-6 rounded-full" />
@@ -169,17 +251,18 @@ export default function Chat() {
                 )}
                 <span className="font-semibold text-green-800">{msg.userName}</span>
               </div>
-              
+
               {msg.text && <p className="text-gray-800 whitespace-pre-wrap">{msg.text}</p>}
-              
+
               {msg.image && (
-                <img 
-                  src={msg.image} 
-                  alt="Mensaje multimedia" 
-                  className="mt-2 rounded max-h-40 max-w-full object-contain border border-gray-200"
+                <img
+                  src={msg.image}
+                  alt="Mensaje multimedia"
+                  className="mt-2 rounded max-h-40 max-w-full object-contain border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setSelectedImage(msg.image)} // 👈 Esto abre la imagen
                 />
               )}
-              
+
               <p className="text-xs text-gray-500 mt-1 text-right">
                 {msg.timestamp?.toDate()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
@@ -189,15 +272,38 @@ export default function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Formulario de envío */}
+      {/* Lightbox para imágenes (nuevo) */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300"
+              onClick={() => setSelectedImage(null)}
+            >
+              <FiX size={28} />
+            </button>
+            <img
+              src={selectedImage}
+              alt="Imagen ampliada"
+              className="max-w-full max-h-[90vh] object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Formulario de envío (existente) */}
       <form onSubmit={sendMessage} className="bg-gray-50 p-3 rounded-b-lg border border-t-0 border-gray-200">
         {showEmojiPicker && (
           <div className="absolute bottom-16 mb-2">
-            <EmojiPicker 
+            <EmojiPicker
               onEmojiClick={(emojiData) => {
                 setMessage(prev => prev + emojiData.emoji);
                 setShowEmojiPicker(false);
-              }} 
+              }}
               width={300}
               height={350}
             />
@@ -205,8 +311,8 @@ export default function Chat() {
         )}
 
         <div className="flex items-center gap-2">
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             className="p-2 text-gray-500 hover:text-green-600"
             disabled={isSending}
@@ -225,8 +331,8 @@ export default function Chat() {
 
           <label className={`p-2 ${isSending ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-green-600 cursor-pointer'}`}>
             <FiImage size={20} />
-            <input 
-              type="file" 
+            <input
+              type="file"
               ref={fileInputRef}
               accept="image/*"
               onChange={(e) => !isSending && setFile(e.target.files[0])}
@@ -238,9 +344,8 @@ export default function Chat() {
           <button
             type="submit"
             disabled={(!message.trim() && !file) || isSending}
-            className={`p-2 rounded-lg transition-colors flex items-center justify-center min-w-[40px] ${
-              isSending ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
+            className={`p-2 rounded-lg transition-colors flex items-center justify-center min-w-[40px] ${isSending ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
           >
             {isSending ? (
               <span className="inline-block animate-spin">⏳</span>
@@ -256,8 +361,8 @@ export default function Chat() {
               <span className="text-sm text-green-800 truncate max-w-xs">
                 {file.name} {isSending && `(${Math.round(uploadProgress)}%)`}
               </span>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   setFile(null);
                   setUploadProgress(0);
@@ -269,16 +374,16 @@ export default function Chat() {
                 <FiX size={18} />
               </button>
             </div>
-            
+
             {uploadProgress > 0 && (
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-green-600 h-2.5 rounded-full" 
+                <div
+                  className="bg-green-600 h-2.5 rounded-full"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
             )}
-            
+
             {file.type.startsWith('image/') && (
               <img
                 src={URL.createObjectURL(file)}
@@ -289,6 +394,28 @@ export default function Chat() {
           </div>
         )}
       </form>
+      {/* Visor de imágenes (modal) */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)} // Cierra al hacer clic fuera
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300"
+              onClick={() => setSelectedImage(null)}
+            >
+              <FiX size={28} />
+            </button>
+            <img
+              src={selectedImage}
+              alt="Imagen ampliada"
+              className="max-w-full max-h-[90vh] object-contain"
+              onClick={(e) => e.stopPropagation()} // Evita que el clic en la imagen cierre el modal
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
