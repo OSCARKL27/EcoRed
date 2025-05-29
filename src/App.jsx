@@ -9,6 +9,7 @@ import Logros from "./pages/Logros";
 import Login from "./pages/Login";
 import Registro from "./pages/Registro";
 import Chat from "./pages/Chat";
+import Mapa from "./pages/Mapa";
 import PrivateRoute from "./components/PrivateRoute";
 import Layout from "./components/Layout";
 
@@ -19,9 +20,9 @@ function App() {
   const [historialGlobal, setHistorialGlobal] = useState([]);
   const [loading, setLoading] = useState(true);
   const [metasUsuario] = useState({
-    diaria: 3,    // Meta diaria de registros
-    semanal: 10,  // Meta semanal
-    mensual: 30   // Meta mensual
+    diaria: 3,
+    semanal: 10,
+    mensual: 30
   });
 
   useEffect(() => {
@@ -53,6 +54,7 @@ function App() {
             <Route path="/historial" element={<PrivateRoute><Historial /></PrivateRoute>} />
             <Route path="/logros" element={<PrivateRoute><Logros /></PrivateRoute>} />
             <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
+            <Route path="/mapa" element={<PrivateRoute><Mapa /></PrivateRoute>} />
           </Routes>
         </Layout>
       </Router>

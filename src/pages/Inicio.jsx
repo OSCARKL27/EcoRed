@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 export default function Inicio() {
   return (
     <>
-      {/* Contenido principal - Ya no necesita contenedor de página completo */}
       <section className="max-w-4xl mx-auto py-12 px-6">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-green-800 mb-4">Transforma tu impacto ambiental</h1>
@@ -23,6 +22,16 @@ export default function Inicio() {
               allowFullScreen
             ></iframe>
           </div>
+        </div>
+
+        {/* Botón para ir al mapa */}
+        <div className="text-center mb-12">
+          <Link 
+            to="/mapa" 
+            className="inline-block bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition text-lg font-medium shadow-md"
+          >
+            🗺️ Ver Mapa de Reciclaje
+          </Link>
         </div>
 
         {/* Sección de beneficios */}
