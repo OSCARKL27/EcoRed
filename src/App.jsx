@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { useState, createContext, useEffect } from "react";
-import { auth } from "./services/firebase"; // Importación corregida
+import { auth } from "./services/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import Inicio from "./pages/Inicio";
 import Tips from "./pages/Tips";
@@ -12,15 +12,18 @@ import Chat from "./pages/Chat";
 import PrivateRoute from "./components/PrivateRoute";
 import Layout from "./components/Layout";
 
-// Creamos un contexto para compartir el historial
 export const AppContext = createContext();
 
 function App() {
   const [user, setUser] = useState(null);
   const [historialGlobal, setHistorialGlobal] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [metasUsuario] = useState({
+    diaria: 3,    // Meta diaria de registros
+    semanal: 10,  // Meta semanal
+    mensual: 30   // Meta mensual
+  });
 
-  // Escuchar cambios en la autenticación
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
@@ -30,20 +33,22 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div>Cargando...</div>;
+    return <div className="text-center p-8">Cargando...</div>;
   }
 
   return (
-    <AppContext.Provider value={{ historialGlobal, setHistorialGlobal, user }}>
+    <AppContext.Provider value={{ 
+      historialGlobal, 
+      setHistorialGlobal, 
+      user,
+      metasUsuario
+    }}>
       <Router>
         <Layout>
           <Routes>
-            {/* Rutas públicas */}
             <Route path="/" element={<Inicio />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registro" element={<Registro />} />
-
-            {/* Rutas protegidas */}
             <Route path="/tips" element={<PrivateRoute><Tips /></PrivateRoute>} />
             <Route path="/historial" element={<PrivateRoute><Historial /></PrivateRoute>} />
             <Route path="/logros" element={<PrivateRoute><Logros /></PrivateRoute>} />
