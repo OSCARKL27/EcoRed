@@ -14,9 +14,9 @@ export default function Inicio() {
         {/* Video explicativo */}
         <div className="mb-12 rounded-xl overflow-hidden shadow-lg">
           <div className="aspect-w-16 aspect-h-9 bg-black">
-            <iframe 
+            <iframe
               className="w-full h-96"
-              src="https://www.youtube.com/embed/[TU_ID_DE_VIDEO]"
+              src="https://www.youtube.com/embed/G3Vlm8abEfc?autoplay=1&mute=1&loop=1&controls=1&rel=0"
               title="Video sobre reciclaje"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -26,8 +26,8 @@ export default function Inicio() {
 
         {/* Botón para ir al mapa */}
         <div className="text-center mb-12">
-          <Link 
-            to="/mapa" 
+          <Link
+            to="/mapa"
             className="inline-block bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition text-lg font-medium shadow-md"
           >
             🗺️ Ver Mapa de Reciclaje
@@ -54,8 +54,8 @@ export default function Inicio() {
         <div className="text-center bg-white p-8 rounded-xl shadow-md">
           <h2 className="text-2xl font-bold text-green-800 mb-4">¡Únete al cambio hoy mismo!</h2>
           <div className="flex justify-center gap-4">
-            <Link 
-              to="/registro" 
+            <Link
+              to="/registro"
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition text-lg font-medium"
             >
               Crear cuenta gratis
